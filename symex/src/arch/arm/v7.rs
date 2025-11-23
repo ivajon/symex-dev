@@ -17,6 +17,7 @@ use crate::{
     project::dwarf_helper::SubProgramMap,
     smt::{SmtExpr, SmtMap},
     trace,
+    warn,
     GAError,
     Mask,
 };
@@ -377,7 +378,9 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
         }
 
         if let Some(it) = it {
-            if it.mask::<1, 3>() != 0b111 {
+            trace!("IT as bv {it:#b}");
+            // if it.mask::<1, 3>() != 0b111 {
+            if it.mask::<0, 3>() != 0b0000 {
                 trace!("Pushing CONDITION {cond:?}");
                 state.architecture.as_v7().in_it_block = true;
                 state.instruction_conditions.push_back(cond);
@@ -404,6 +407,7 @@ impl<Override: ArchitectureOverride> Architecture<Override> for ArmV7EM {
     fn add_hooks<C: crate::Composition>(&self, cfg: &mut HookContainer<C>, map: &mut SubProgramMap) {
         trace!("Adding armv7em hooks");
         let symbolic_sized = |state: &mut GAState<C>| {
+            warn!("Creating a symbol at {:#X}", state.last_pc);
             let value_ptr = match state.memory.get_register("R0") {
                 Ok(val) => val,
                 Err(e) => return Err(e).context("While resolving address for new symbolic value"),

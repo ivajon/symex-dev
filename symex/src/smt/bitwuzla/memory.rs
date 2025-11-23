@@ -398,7 +398,6 @@ impl<State: UserStateContainer> SmtMap for BitwuzlaMemory<State> {
     }
 
     fn get_from_instruction_memory(&self, address: u64) -> crate::Result<Vec<u8>> {
-        warn!("Reading instruction from memory");
         Ok(self.program_memory.get_raw_word(address)?)
     }
 

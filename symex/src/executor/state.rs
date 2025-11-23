@@ -226,7 +226,15 @@ impl<C: Composition> GAState<C> {
     pub fn get_next_instruction_condition_expression(&mut self) -> Option<C::SmtExpression> {
         // TODO add error handling
         self.instruction_had_condition = !self.instruction_conditions.is_empty();
-        self.instruction_conditions.pop_front().map(|condition| self.get_expr(&condition).unwrap())
+
+        let cond = self.instruction_conditions.pop_front();
+
+        let Some(cond) = cond else {
+            trace!("Instruction had no condition");
+            return None;
+        };
+        trace!("Instruction had condition {:?}", cond);
+        Some(self.get_expr(&cond).unwrap())
     }
 
     /// Create a state used for testing.

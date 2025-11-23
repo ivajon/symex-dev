@@ -521,6 +521,7 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
         let pc = self.state.last_pc & ((u64::MAX >> 1) << 1);
         let mut new_logger = logger.fork();
         new_logger.warn(format!("{}: {msg}", self.state.debug_string_fork()));
+        warn!("{}: {msg}", self.state.debug_string_fork());
         let path = Path::new(forked_state, Some(constraint), pc, new_logger);
 
         self.vm.paths.save_path(path);
@@ -884,24 +885,27 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
 
         // check if we should actually execute the instruction
         let should_run = match self.state.get_next_instruction_condition_expression() {
-            Some(c) => match c.get_constant_bool() {
-                Some(constant_c) => constant_c,
-                None => {
-                    let true_possible = extract!(Ok(self.state.constraints.is_sat_with_constraint(&c).map_err(Into::into)));
-                    let false_possible = extract!(Ok(self.state.constraints.is_sat_with_constraint(&c.not()).map_err(Into::into)));
+            Some(c) => {
+                trace!("Next instruction execution expressions is {:?}", c);
+                match c.get_constant_bool() {
+                    Some(constant_c) => constant_c,
+                    None => {
+                        let true_possible = extract!(Ok(self.state.constraints.is_sat_with_constraint(&c).map_err(Into::into)));
+                        let false_possible = extract!(Ok(self.state.constraints.is_sat_with_constraint(&c.not()).map_err(Into::into)));
 
-                    if true_possible && false_possible {
-                        self.fork(c.not(), logger, &Continue::This, "Forking due to conditional execution, both options are possible");
-                        self.state.constraints.assert(&c);
+                        if true_possible && false_possible {
+                            self.fork(c.not(), logger, &Continue::This, "Forking due to conditional execution, both options are possible");
+                            self.state.constraints.assert(&c);
+                        }
+
+                        if !true_possible && !false_possible {
+                            return ResultOrTerminate::Result(Err(SolverError::Unsat).context("While determining if executor should run."));
+                        }
+
+                        true_possible
                     }
-
-                    if !true_possible && !false_possible {
-                        return ResultOrTerminate::Result(Err(SolverError::Unsat).context("While determining if executor should run."));
-                    }
-
-                    true_possible
                 }
-            },
+            }
             None => true,
         };
 
@@ -1147,8 +1151,9 @@ impl<'vm, C: Composition> GAExecutor<'vm, C> {
             }
             Operation::SetNFlag(operand) => {
                 let value = extract!(Ok(self.get_operand_value(operand, logger)));
-                let shift = self.state.memory.from_u64((self.project.get_word_size() - 1) as u64, 32);
-                let result = value.shift(&shift, Shift::Lsr).resize_unsigned(1);
+                // let shift = self.state.memory.from_u64((self.project.get_word_size() - 1) as
+                // u64, 32);
+                let result = value.slice(self.project.get_word_size() - 1, self.project.get_word_size() - 1).resize_unsigned(1);
                 extract!(Ok(self.state.set_flag("N", &result)));
             }
             Operation::SetZFlag(operand) => {
